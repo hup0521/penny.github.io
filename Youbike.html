@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouBike 2.0 雙模式即時儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        #map { height: 600px; width: 100%; border-radius: 1rem; z-index: 1; }
+        .loading-spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #fbbf24; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes pulse { 0% { stroke-width: 2; stroke-opacity: 1; } 50% { stroke-width: 8; stroke-opacity: 0.5; } 100% { stroke-width: 2; stroke-opacity: 1; } }
+        .nearby-marker { animation: pulse 2s infinite; }
+        .tab-active { border-bottom: 3px solid #fbbf24; color: #fbbf24; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800"><span class="text-yellow-500">YouBike</span> 即時儀表板</h1>
+                <p class="text-gray-500 text-sm">輸入目的地或使用 GPS 尋找站點</p>
+            </div>
+            <div class="flex items-center bg-white rounded-lg shadow-sm border p-1">
+                <button id="showMapBtn" class="px-4 py-2 rounded-md font-medium transition tab-active">地圖模式</button>
+                <button id="showGridBtn" class="px-4 py-2 rounded-md font-medium transition text-gray-400 hover:text-gray-600">最近站點 (方格)</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="md:col-span-3 flex gap-2">
+                <input type="text" id="searchInput" placeholder="輸入目的地地址或地標 (例如: 台北101)" class="flex-grow p-3 rounded-xl border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition">
+                <button id="searchBtn" class="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-700 transition flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    搜尋
+                </button>
+            </div>
+            <button id="gpsBtn" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-50 transition flex items-center justify-center gap-2 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                </svg>
+                我的位置
+            </button>
+        </div>
+
+        <div id="mapContainer" class="relative bg-white p-2 rounded-2xl shadow-xl border border-gray-100 mb-8">
+            <div id="map"></div>
+            <div class="absolute bottom-6 left-6 z-[500] bg-white/95 p-3 rounded-lg shadow-md text-[10px] border border-gray-200 grid grid-cols-2 gap-x-4 gap-y-1">
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500"></span> <span>目標最近 10 站</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-500"></span> <span>有車可借</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span> <span>無車可借</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-600"></span> <span>無位可還 (滿)</span></div>
+            </div>
+        </div>
+
+        <div id="gridContainer" class="hidden mb-8">
+            <div id="nearbyGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-center">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-sm text-gray-400">總掃描站點</p>
+                <p id="totalStations" class="text-2xl font-bold text-gray-700">0</p>
+            </div>
+            <button id="refreshBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl shadow-lg font-bold flex flex-col items-center justify-center p-4 transition">
+                <span class="text-sm">重新整理車況</span>
+                <span id="updateTime" class="text-xs opacity-80">更新中...</span>
+            </button>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-sm text-gray-400">當前基準點</p>
+                <p id="locationStatus" class="text-lg font-bold text-gray-600 italic truncate px-2">尚未定位</p>
+            </div>
+        </div>
+
+        <div id="globalLoader" class="fixed inset-0 bg-white/80 z-[2000] flex flex-col items-center justify-center hidden">
+            <div class="loading-spinner mb-4"></div>
+            <p id="loaderText" class="font-medium text-gray-600">處理中...</p>
+        </div>
+
+        <footer class="text-center text-gray-400 text-xs pb-12">
+            資料來源：台北市政府公開資料 | 地址搜尋由 Nominatim (OSM) 提供
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API_URL = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json';
+        const INITIAL_VIEW = [25.0408, 121.5375]; 
+        const map = L.map('map', { zoomControl: false }).setView(INITIAL_VIEW, 14);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+
+        const markerGroup = L.layerGroup().addTo(map);
+        const userMarkerGroup = L.layerGroup().addTo(map);
+
+        const elements = {
+            mapContainer: document.getElementById('mapContainer'),
+            gridContainer: document.getElementById('gridContainer'),
+            nearbyGrid: document.getElementById('nearbyGrid'),
+            showMapBtn: document.getElementById('showMapBtn'),
+            showGridBtn: document.getElementById('showGridBtn'),
+            refreshBtn: document.getElementById('refreshBtn'),
+            globalLoader: document.getElementById('globalLoader'),
+            loaderText: document.getElementById('loaderText'),
+            totalStations: document.getElementById('totalStations'),
+            updateTime: document.getElementById('updateTime'),
+            locationStatus: document.getElementById('locationStatus'),
+            searchInput: document.getElementById('searchInput'),
+            searchBtn: document.getElementById('searchBtn'),
+            gpsBtn: document.getElementById('gpsBtn')
+        };
+
+        let cachedData = [];
+        let basePos = null;
+
+        // 頁面切換
+        elements.showMapBtn.addEventListener('click', () => {
+            elements.mapContainer.classList.remove('hidden');
+            elements.gridContainer.classList.add('hidden');
+            elements.showMapBtn.classList.add('tab-active');
+            elements.showGridBtn.classList.remove('tab-active');
+            elements.showGridBtn.classList.add('text-gray-400');
+            setTimeout(() => map.invalidateSize(), 100);
+        });
+
+        elements.showGridBtn.addEventListener('click', () => {
+            elements.mapContainer.classList.add('hidden');
+            elements.gridContainer.classList.remove('hidden');
+            elements.showGridBtn.classList.add('tab-active');
+            elements.showGridBtn.classList.remove('text-gray-400');
+            elements.showMapBtn.classList.remove('tab-active');
+            renderGridMode();
+        });
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        async function searchLocation(query) {
+            if (!query) return;
+            elements.globalLoader.classList.remove('hidden');
+            elements.loaderText.innerText = `正在搜尋 "${query}"...`;
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    basePos = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    elements.locationStatus.innerText = data[0].display_name.split(',')[0];
+                    elements.locationStatus.className = "text-lg font-bold text-blue-600 italic truncate px-2";
+                    updateBaseMarker(); 
+                    await refreshBikeData();
+                } else {
+                    elements.locationStatus.innerText = "搜尋無結果";
+                    elements.locationStatus.className = "text-lg font-bold text-red-500 italic";
+                    basePos = null;
+                }
+            } catch (e) {
+                basePos = null;
+            } finally {
+                elements.globalLoader.classList.add('hidden');
+            }
+        }
+
+        async function getGPSLocation() {
+            elements.globalLoader.classList.remove('hidden');
+            elements.loaderText.innerText = "正在取得 GPS 定位...";
+            
+            if (!navigator.geolocation) {
+                handleLocationError("瀏覽器不支援");
+                return;
+            }
+
+            // 使用 Promise 封裝，增加逾時控制
+            const posOptions = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+
+            navigator.geolocation.getCurrentPosition(
+                async (p) => {
+                    basePos = { lat: p.coords.latitude, lng: p.coords.longitude };
+                    elements.locationStatus.innerText = "我的位置";
+                    elements.locationStatus.className = "text-lg font-bold text-green-600 italic truncate px-2";
+                    updateBaseMarker();
+                    await refreshBikeData();
+                    elements.globalLoader.classList.add('hidden');
+                },
+                (err) => {
+                    let msg = "定位失敗";
+                    if (err.code === 1) msg = "失敗 (權限拒絕)";
+                    else if (err.code === 2) msg = "失敗 (收不到訊號)";
+                    else if (err.code === 3) msg = "失敗 (定位超時)";
+                    handleLocationError(msg);
+                },
+                posOptions
+            );
+        }
+
+        function handleLocationError(msg) {
+            basePos = null;
+            elements.locationStatus.innerText = msg;
+            elements.locationStatus.className = "text-lg font-bold text-red-500 italic truncate px-2";
+            userMarkerGroup.clearLayers();
+            renderMapMarkers();
+            elements.globalLoader.classList.add('hidden');
+        }
+
+        function updateBaseMarker() {
+            userMarkerGroup.clearLayers();
+            if (basePos) {
+                L.marker([basePos.lat, basePos.lng]).addTo(userMarkerGroup);
+                map.setView([basePos.lat, basePos.lng], 17, { animate: true });
+            }
+        }
+
+        async function refreshBikeData() {
+            try {
+                const res = await fetch(API_URL);
+                cachedData = await res.json();
+                elements.totalStations.innerText = cachedData.length;
+                elements.updateTime.innerText = new Date().toLocaleTimeString();
+                
+                if (basePos) {
+                    cachedData.forEach(s => s.dist = getDistance(basePos.lat, basePos.lng, s.latitude, s.longitude));
+                    cachedData.sort((a, b) => a.dist - b.dist);
+                }
+
+                renderMapMarkers();
+                if (!elements.gridContainer.classList.contains('hidden')) renderGridMode();
+            } catch (e) {
+                elements.updateTime.innerText = "資料連線失敗";
+            }
+        }
+
+        function renderMapMarkers() {
+            markerGroup.clearLayers();
+            const nearestIds = basePos ? cachedData.slice(0, 10).map(s => s.sno) : [];
+
+            cachedData.forEach(station => {
+                const isNearby = basePos && nearestIds.includes(station.sno);
+                const hasBikes = station.available_rent_bikes > 0;
+                const isFull = station.available_return_bikes === 0;
+
+                let color = '#fbbf24'; 
+                if (!hasBikes) color = '#ef4444'; 
+                if (isFull) color = '#9333ea'; 
+                if (isNearby) color = '#3b82f6'; 
+
+                const marker = L.circleMarker([station.latitude, station.longitude], {
+                    radius: isNearby ? 10 : 7,
+                    fillColor: color,
+                    color: isNearby ? "#1d4ed8" : "#fff",
+                    weight: isNearby ? 3 : 1,
+                    fillOpacity: 0.8,
+                    className: isNearby ? 'nearby-marker' : ''
+                });
+
+                marker.bindPopup(`
+                    <div class="text-sm">
+                        <b class="text-base">${station.sna.replace('YouBike2.0_', '')}</b><br>
+                        <span class="text-gray-500">${station.ar}</span><hr class="my-1">
+                        <div class="flex gap-4">
+                            <span class="${hasBikes ? 'text-green-600' : 'text-red-600'} font-bold">可借: ${station.available_rent_bikes}</span>
+                            <span class="${!isFull ? 'text-blue-600' : 'text-purple-600'} font-bold">可還: ${station.available_return_bikes}</span>
+                        </div>
+                    </div>
+                `);
+                markerGroup.addLayer(marker);
+            });
+        }
+
+        function renderGridMode() {
+            if (!basePos) {
+                elements.nearbyGrid.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
+                        <p>目前定位失敗，請嘗試手動搜尋地址</p>
+                    </div>`;
+                return;
+            }
+            const nearest = cachedData.slice(0, 10);
+            elements.nearbyGrid.innerHTML = nearest.map(s => `
+                <div class="bg-white rounded-2xl p-6 shadow-sm border hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="font-bold text-lg text-gray-800">${s.sna.replace('YouBike2.0_', '')}</h3>
+                        <span class="text-blue-600 font-bold text-xs bg-blue-50 px-2 py-1 rounded">約 ${(s.dist * 1000).toFixed(0)}m</span>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-4 h-8 overflow-hidden">${s.ar}</p>
+                    <div class="grid grid-cols-2 gap-4 pt-4 border-t">
+                        <div class="text-center">
+                            <p class="text-[10px] text-gray-400 uppercase">可借車輛</p>
+                            <p class="text-2xl font-bold ${s.available_rent_bikes > 0 ? 'text-green-600' : 'text-red-600'}">${s.available_rent_bikes}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-gray-400 uppercase">可還空位</p>
+                            <p class="text-2xl font-bold ${s.available_return_bikes > 0 ? 'text-blue-600' : 'text-purple-600'}">${s.available_return_bikes}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        elements.searchBtn.addEventListener('click', () => searchLocation(elements.searchInput.value));
+        elements.searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchLocation(elements.searchInput.value); });
+        elements.gpsBtn.addEventListener('click', getGPSLocation);
+        elements.refreshBtn.addEventListener('click', refreshBikeData);
+
+        window.onload = async () => {
+            await refreshBikeData();
+            getGPSLocation(); 
+        };
+    </script>
+</body>
+</html>
