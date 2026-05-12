@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Color Flood - 完整版面優化版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #2b2d42;
+            --card-bg: #1a1b2e;
+            --text-color: #ffffff;
+            --accent-color: #90dbf4;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'PingFang TC', 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            height: 100svh; /* 針對行動裝置的短視窗優化 */
+            margin: 0;
+            overflow: hidden; /* 防止視窗捲動 */
+            background: radial-gradient(circle, #2b2d42 0%, #13131f 100%);
+        }
+
+        #game-wrapper {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        #header-box {
+            text-align: center;
+            margin-bottom: 0.75rem;
+        }
+
+        #header-title {
+            font-size: clamp(1.5rem, 5vw, 2.2rem);
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            color: #90dbf4;
+            text-shadow: 0 0 15px rgba(144, 219, 244, 0.4);
+            margin: 0;
+        }
+
+        #game-panel {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            padding: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            /* 動態限制畫布大小，確保在各種比例的螢幕上都能完整顯示 */
+            max-width: min(80vw, 60vh);
+            aspect-ratio: 1;
+        }
+
+        canvas#gameCanvas {
+            border-radius: 8px;
+            cursor: crosshair;
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        #control-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding: 0 0.5rem;
+        }
+
+        .moves-display {
+            text-align: left;
+        }
+
+        .moves-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.6;
+        }
+
+        #moves-count {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+            color: #90dbf4;
+        }
+
+        .action-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .action-btn:hover {
+            background: #90dbf4;
+            color: #1a1b2e;
+            border-color: #90dbf4;
+            transform: translateY(-2px);
+        }
+
+        #message-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            background: #1a1b2e;
+            padding: 2.5rem;
+            border-radius: 24px;
+            text-align: center;
+            border: 2px solid #90dbf4;
+            max-width: 80%;
+        }
+
+        /* 煙火畫布設置在最上層 */
+        #fireworksCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .hint {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #90dbf4;
+            font-weight: 700;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.9; }
+            100% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 獲勝煙火圖層 -->
+    <canvas id="fireworksCanvas"></canvas>
+
+    <div id="game-wrapper">
+        <div id="header-box">
+            <h1 id="header-title">COLOR FLOOD</h1>
+        </div>
+
+        <div id="game-panel">
+            <div class="canvas-wrapper">
+                <canvas id="gameCanvas" width="600" height="600"></canvas>
+            </div>
+        </div>
+
+        <div id="control-bar">
+            <div class="moves-display">
+                <div class="moves-label">剩餘步數</div>
+                <div id="moves-count">25</div>
+            </div>
+            <button class="action-btn" onclick="initGame()">重新洗牌</button>
+        </div>
+        
+        <p class="hint">直接點擊網格內的顏色來進行擴散</p>
+    </div>
+
+    <!-- 遊戲結束彈窗 -->
+    <div id="message-overlay">
+        <div class="modal">
+            <h2 id="modal-title" class="text-3xl font-black mb-4"></h2>
+            <p id="modal-desc" class="text-lg mb-8 opacity-70"></p>
+            <button class="bg-[#90dbf4] text-[#1a1b2e] px-10 py-3 rounded-xl font-bold text-lg hover:scale-105 transition" onclick="closeModal()">再挑戰一次</button>
+        </div>
+    </div>
+
+    <script>
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gameCtx = gameCanvas.getContext('2d');
+        const fwCanvas = document.getElementById('fireworksCanvas');
+        const fwCtx = fwCanvas.getContext('2d');
+        const movesDisplay = document.getElementById('moves-count');
+        const overlay = document.getElementById('message-overlay');
+
+        // 配色方案：柔和清晰，易於辨識
+        const COLORS = [
+            '#ffadad', // 柔和紅
+            '#ffd6a5', // 柔和橘
+            '#fdffb6', // 柔和黃
+            '#caffbf', // 柔和綠
+            '#9bf6ff', // 柔和藍
+            '#bdb2ff'  // 柔和紫
+        ];
+
+        const GRID_SIZE = 14;
+        const TILE_SIZE = 600 / GRID_SIZE;
+        const MAX_MOVES = 25;
+
+        let grid = [];
+        let movesLeft = MAX_MOVES;
+        let isGameOver = false;
+        let particles = [];
+        let animationFrame;
+
+        // 初始化遊戲數據
+        function initGame() {
+            grid = [];
+            movesLeft = MAX_MOVES;
+            isGameOver = false;
+            stopFireworks();
+            updateUI();
+
+            for (let y = 0; y < GRID_SIZE; y++) {
+                grid[y] = [];
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    grid[y][x] = Math.floor(Math.random() * COLORS.length);
+                }
+            }
+            draw();
+        }
+
+        // 繪製遊戲網格
+        function draw() {
+            gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    gameCtx.fillStyle = COLORS[grid[y][x]];
+                    gameCtx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    
+                    // 繪製格線增加質感與辨識度
+                    gameCtx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+                    gameCtx.lineWidth = 1;
+                    gameCtx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+
+        // 事件監聽：滑鼠點擊
+        gameCanvas.addEventListener('mousedown', (e) => handleInteraction(e.clientX, e.clientY));
+        
+        // 事件監聽：觸控點擊
+        gameCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleInteraction(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        // 處理玩家交互邏輯
+        function handleInteraction(clientX, clientY) {
+            if (isGameOver || movesLeft <= 0) return;
+
+            const rect = gameCanvas.getBoundingClientRect();
+            // 計算畫布實際座標，處理 CSS 縮放後的偏移
+            const scaleX = gameCanvas.width / rect.width;
+            const scaleY = gameCanvas.height / rect.height;
+            const x = Math.floor((clientX - rect.left) * scaleX / TILE_SIZE);
+            const y = Math.floor((clientY - rect.top) * scaleY / TILE_SIZE);
+            
+            if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+
+            const targetColorIndex = grid[y][x];
+            const startColorIndex = grid[0][0];
+
+            // 點擊目前左上角的顏色無效
+            if (targetColorIndex === startColorIndex) return;
+
+            // 執行顏色淹沒擴散
+            floodFill(0, 0, startColorIndex, targetColorIndex);
+            
+            // 減少剩餘步數，最小值為 0
+            movesLeft = Math.max(0, movesLeft - 1);
+            
+            updateUI();
+            draw();
+            checkGameState();
+        }
+
+        // 淹沒演算法 (Flood Fill)
+        function floodFill(x, y, oldColor, newColor) {
+            if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE || grid[y][x] !== oldColor) return;
+            grid[y][x] = newColor;
+            floodFill(x + 1, y, oldColor, newColor);
+            floodFill(x - 1, y, oldColor, newColor);
+            floodFill(x, y + 1, oldColor, newColor);
+            floodFill(x, y - 1, oldColor, newColor);
+        }
+
+        // 更新介面狀態
+        function updateUI() {
+            movesDisplay.innerText = movesLeft;
+            // 步數過少時改變顏色警告玩家
+            movesDisplay.style.color = movesLeft <= 5 ? '#ffadad' : '#90dbf4';
+        }
+
+        // 檢查勝負狀態
+        function checkGameState() {
+            const firstColor = grid[0][0];
+            const isWin = grid.every(row => row.every(cell => cell === firstColor));
+
+            if (isWin) {
+                isGameOver = true;
+                startFireworks(COLORS[firstColor]);
+                setTimeout(() => {
+                    showOverlay("勝利！", "你成功統一了色彩世界。");
+                }, 800);
+            } else if (movesLeft <= 0) {
+                isGameOver = true;
+                showOverlay("挑戰結束", "步數已用盡，請再接再厲！");
+            }
+        }
+
+        function showOverlay(title, desc) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            overlay.style.display = 'flex';
+        }
+
+        function closeModal() {
+            overlay.style.display = 'none';
+            initGame();
+        }
+
+        // 煙火粒子邏輯
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 4 + 1;
+                this.speedX = (Math.random() - 0.5) * 12;
+                this.speedY = (Math.random() - 0.5) * 12;
+                this.gravity = 0.15;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.02 + 0.01;
+            }
+            update() {
+                this.speedY += this.gravity;
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.alpha -= this.decay;
+            }
+            draw() {
+                fwCtx.globalAlpha = this.alpha;
+                fwCtx.fillStyle = this.color;
+                fwCtx.beginPath();
+                fwCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                fwCtx.fill();
+            }
+        }
+
+        function startFireworks(color) {
+            particles = [];
+            const animate = () => {
+                fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+                if (Math.random() < 0.2) {
+                    const x = Math.random() * fwCanvas.width;
+                    const y = Math.random() * fwCanvas.height * 0.4;
+                    for (let i = 0; i < 50; i++) particles.push(new Particle(x, y, color));
+                }
+                particles.forEach((p, i) => {
+                    p.update();
+                    p.draw();
+                    if (p.alpha <= 0) particles.splice(i, 1);
+                });
+                animationFrame = requestAnimationFrame(animate);
+            };
+            animate();
+        }
+
+        function stopFireworks() {
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+            particles = [];
+        }
+
+        function resizeFireworks() {
+            fwCanvas.width = window.innerWidth;
+            fwCanvas.height = window.innerHeight;
+        }
+
+        window.onresize = resizeFireworks;
+        window.onload = () => {
+            resizeFireworks();
+            initGame();
+        };
+    </script>
+</body>
+</html>
