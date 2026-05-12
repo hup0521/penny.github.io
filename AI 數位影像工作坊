@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 數位影像工作坊 Pro | Smart AI Suite</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-dark: #1e293b;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --sidebar-width: 320px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Noto Sans TC', system-ui, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        /* 側邊欄 */
+        aside {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            height: 100%;
+            background-color: var(--panel-dark);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            z-index: 20;
+            overflow-y: auto;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+        }
+
+        .logo-section {
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-section h1 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-blue);
+            margin: 1.5rem 0 0.75rem 0;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.7rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            background-color: #334155;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #475569;
+            transform: translateY(-2px);
+        }
+
+        .btn.active {
+            background-color: var(--accent-blue);
+            border-color: white;
+        }
+
+        .btn-ai { background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); border: none; font-weight: 600; }
+        .btn-primary { background-color: var(--accent-blue); border: none; }
+        .btn-success { background-color: #10b981; border: none; }
+        .btn-danger { background-color: #ef4444; border: none; }
+
+        .control-group { margin-bottom: 1rem; }
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="number"], input[type="text"] {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            width: 100%;
+            outline: none;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            appearance: none;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent-blue);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        main {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #020617;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 40px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222), 
+                              linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            border-radius: 4px;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 2px;
+        }
+
+        #maskCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .active-panel {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--accent-blue);
+            margin-top: 0.5rem;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        #ai-console {
+            background-color: #020617;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #10b981;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+
+        textarea {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            resize: none;
+            height: 50px;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tool-hint {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent-blue);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="logo-section">
+            <i data-lucide="sparkles" style="color: var(--accent-blue)"></i>
+            <h1>AI Image Workshop</h1>
+        </div>
+
+        <button class="btn btn-primary" onclick="document.getElementById('uploadInput').click()">
+            <i data-lucide="upload"></i> 匯入圖片
+        </button>
+        <input type="file" id="uploadInput" accept="image/*" hidden>
+
+        <div class="section-title"><i data-lucide="layers"></i> 基礎操作</div>
+        <div class="input-row">
+            <button class="btn" id="btn-undo" onclick="undo()" disabled title="復原">
+                <i data-lucide="rotate-ccw"></i>
+            </button>
+            <button class="btn" onclick="resetAll()" title="重置全部">
+                <i data-lucide="refresh-cw"></i>
+            </button>
+        </div>
+
+        <button class="btn" id="btn-toggle-resize" onclick="toggleResizeMode()">
+            <i data-lucide="maximize"></i> 調整尺寸
+        </button>
+        <div id="resize-panel" class="active-panel" style="display: none;">
+            <div class="control-group">
+                <div class="input-row">
+                    <div>
+                        <label class="control-label">寬度 (px)</label>
+                        <input type="number" id="resize-w">
+                    </div>
+                    <div>
+                        <label class="control-label">高度 (px)</label>
+                        <input type="number" id="resize-h">
+                    </div>
+                </div>
+                <label style="font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="resize-lock" checked> 鎖定長寬比
+                </label>
+            </div>
+            <div class="input-row">
+                <button class="btn btn-success" onclick="applyResize()">套用</button>
+                <button class="btn btn-danger" onclick="toggleResizeMode()">取消</button>
+            </div>
+        </div>
+
+        <!-- 改善後的裁切面板 -->
+        <button class="btn" id="btn-toggle-crop" onclick="toggleCropMode()">
+            <i data-lucide="crop"></i> 視覺化裁切
+        </button>
+        <div id="crop-panel" class="active-panel" style="display: none;">
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">請在圖片上拖曳選取裁切範圍</p>
+            <div class="input-row">
+                <button class="btn btn-success" id="btn-apply-crop" onclick="applyCrop()" disabled>執行裁切</button>
+                <button class="btn btn-danger" onclick="toggleCropMode()">取消</button>
+            </div>
+        </div>
+
+        <div class="section-title"><i data-lucide="zap"></i> AI 智慧工具</div>
+        <button class="btn" id="btn-toggle-eraser" onclick="toggleEraserMode()">
+            <i data-lucide="eraser"></i> 智慧橡皮擦
+        </button>
+        <div id="eraser-panel" class="active-panel" style="display: none;">
+            <div class="control-group">
+                <div class="control-label">筆刷大小: <span id="val-brush">30</span></div>
+                <input type="range" id="range-brush" min="5" max="100" value="30">
+            </div>
+            <div class="input-row">
+                <button class="btn btn-ai" onclick="applyEraser()">消除物件</button>
+                <button class="btn btn-danger" onclick="clearMask()">清除塗鴉</button>
+            </div>
+        </div>
+
+        <button class="btn btn-ai" onclick="removeBackground()">
+            <i data-lucide="user-minus"></i> AI 一鍵去背
+        </button>
+
+        <div class="section-title"><i data-lucide="wand"></i> 濾鏡與生成</div>
+        <div class="control-group">
+            <div class="control-label">亮度 <span id="val-bright">100%</span></div>
+            <input type="range" id="range-bright" min="0" max="200" value="100">
+        </div>
+        
+        <textarea id="ai-prompt" placeholder="AI 修改指令..."></textarea>
+        <button class="btn btn-ai" onclick="applyAIEdit()">
+            <i data-lucide="sparkles"></i> 智慧改圖
+        </button>
+
+        <div id="ai-console"></div>
+
+        <button class="btn btn-success" onclick="downloadImage()" style="margin-top: auto;">
+            <i data-lucide="download"></i> 導出作品
+        </button>
+    </aside>
+
+    <main>
+        <div id="placeholder">
+            <i data-lucide="image" style="width:48px; height:48px; opacity:0.2; display: block; margin: 0 auto 1rem;"></i>
+            <p style="color: var(--text-muted);">上傳圖片開始編輯</p>
+        </div>
+
+        <div class="canvas-container" id="canvasContainer" style="display: none;">
+            <div id="toolHint" class="tool-hint" style="display: none;"></div>
+            <canvas id="mainCanvas"></canvas>
+            <canvas id="maskCanvas"></canvas>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        const apiKey = ""; 
+        const mainCanvas = document.getElementById('mainCanvas');
+        const mCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+        const maskCanvas = document.getElementById('maskCanvas');
+        const sCtx = maskCanvas.getContext('2d');
+        const aiConsole = document.getElementById('ai-console');
+        const toolHint = document.getElementById('toolHint');
+        
+        let originalImg = null;
+        let historyStack = [];
+        let currentMode = 'none'; // 'none', 'eraser', 'crop'
+        let isDragging = false;
+        let brushSize = 30;
+        let imgAspectRatio = 1;
+
+        // 裁切座標
+        let cropStart = { x: 0, y: 0 };
+        let cropEnd = { x: 0, y: 0 };
+        let hasCropSelection = false;
+
+        function logAI(msg, isError = false) {
+            aiConsole.style.display = 'block';
+            aiConsole.style.color = isError ? '#ef4444' : '#10b981';
+            aiConsole.innerText = `> ${msg}`;
+        }
+
+        document.getElementById('uploadInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => loadImage(f.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        function loadImage(src, saveToHistory = true) {
+            const img = new Image();
+            img.onload = () => {
+                if (saveToHistory && originalImg) {
+                    historyStack.push(mainCanvas.toDataURL());
+                    updateUndo();
+                }
+                originalImg = img;
+                imgAspectRatio = img.width / img.height;
+                
+                document.getElementById('placeholder').style.display = 'none';
+                document.getElementById('canvasContainer').style.display = 'block';
+                
+                mainCanvas.width = img.width;
+                mainCanvas.height = img.height;
+                maskCanvas.width = img.width;
+                maskCanvas.height = img.height;
+
+                document.getElementById('resize-w').value = img.width;
+                document.getElementById('resize-h').value = img.height;
+                
+                render();
+            };
+            img.src = src;
+        }
+
+        function updateUndo() {
+            document.getElementById('btn-undo').disabled = historyStack.length === 0;
+        }
+
+        function undo() {
+            if (historyStack.length === 0) return;
+            loadImage(historyStack.pop(), false);
+            updateUndo();
+        }
+
+        // --- 尺寸調整 ---
+        function toggleResizeMode() {
+            closeAllPanels('resize-panel');
+            const panel = document.getElementById('resize-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            currentMode = 'none';
+        }
+
+        document.getElementById('resize-w').addEventListener('input', (e) => {
+            if (document.getElementById('resize-lock').checked && originalImg) {
+                document.getElementById('resize-h').value = Math.round(e.target.value / imgAspectRatio);
+            }
+        });
+
+        document.getElementById('resize-h').addEventListener('input', (e) => {
+            if (document.getElementById('resize-lock').checked && originalImg) {
+                document.getElementById('resize-w').value = Math.round(e.target.value * imgAspectRatio);
+            }
+        });
+
+        function applyResize() {
+            const nw = parseInt(document.getElementById('resize-w').value);
+            const nh = parseInt(document.getElementById('resize-h').value);
+            if (!nw || !nh) return;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = nw;
+            tempCanvas.height = nh;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(originalImg, 0, 0, nw, nh);
+            loadImage(tempCanvas.toDataURL());
+            toggleResizeMode();
+            logAI(`尺寸調整完成`);
+        }
+
+        // --- 改善後的裁切邏輯 ---
+        function toggleCropMode() {
+            closeAllPanels('crop-panel');
+            currentMode = currentMode === 'crop' ? 'none' : 'crop';
+            document.getElementById('crop-panel').style.display = currentMode === 'crop' ? 'block' : 'none';
+            document.getElementById('btn-toggle-crop').classList.toggle('active', currentMode === 'crop');
+            
+            hasCropSelection = false;
+            document.getElementById('btn-apply-crop').disabled = true;
+            
+            if (currentMode === 'crop') {
+                toolHint.style.display = 'block';
+                toolHint.innerText = '請在畫面上拖曳選取範圍';
+            } else {
+                toolHint.style.display = 'none';
+            }
+            clearMask();
+        }
+
+        function applyCrop() {
+            if (!hasCropSelection) return;
+
+            const x = Math.min(cropStart.x, cropEnd.x);
+            const y = Math.min(cropStart.y, cropEnd.y);
+            const w = Math.abs(cropStart.x - cropEnd.x);
+            const h = Math.abs(cropStart.y - cropEnd.y);
+
+            if (w < 5 || h < 5) return; // 太小不裁切
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            // 從 mainCanvas (已套用濾鏡) 裁切，或從 originalImg 裁切？
+            // 這裡選擇從當前顯示的 mainCanvas 裁切
+            tCtx.drawImage(mainCanvas, x, y, w, h, 0, 0, w, h);
+            
+            loadImage(tempCanvas.toDataURL());
+            toggleCropMode();
+            logAI("影像裁切完成");
+        }
+
+        // --- 智慧橡皮擦 ---
+        function toggleEraserMode() {
+            closeAllPanels('eraser-panel');
+            currentMode = currentMode === 'eraser' ? 'none' : 'eraser';
+            document.getElementById('eraser-panel').style.display = currentMode === 'eraser' ? 'block' : 'none';
+            document.getElementById('btn-toggle-eraser').classList.toggle('active', currentMode === 'eraser');
+            
+            if (currentMode === 'eraser') {
+                toolHint.style.display = 'block';
+                toolHint.innerText = '塗鴉標註欲消除的物件';
+            } else {
+                toolHint.style.display = 'none';
+            }
+            clearMask();
+        }
+
+        function clearMask() {
+            sCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        }
+
+        document.getElementById('range-brush').addEventListener('input', (e) => {
+            brushSize = e.target.value;
+            document.getElementById('val-brush').innerText = brushSize;
+        });
+
+        // --- 通用互動邏輯 (裁切 & 橡皮擦) ---
+        const container = document.getElementById('canvasContainer');
+        
+        container.addEventListener('mousedown', (e) => {
+            if (currentMode === 'none') return;
+            isDragging = true;
+            const pos = getMousePos(e);
+            
+            if (currentMode === 'crop') {
+                cropStart = pos;
+                cropEnd = pos;
+                hasCropSelection = false;
+                document.getElementById('btn-apply-crop').disabled = true;
+            } else if (currentMode === 'eraser') {
+                drawEraser(pos.x, pos.y, false);
+            }
+        });
+
+        container.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const pos = getMousePos(e);
+
+            if (currentMode === 'crop') {
+                cropEnd = pos;
+                renderCropPreview();
+            } else if (currentMode === 'eraser') {
+                drawEraser(pos.x, pos.y, true);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            if (currentMode === 'crop') {
+                const w = Math.abs(cropStart.x - cropEnd.x);
+                const h = Math.abs(cropStart.y - cropEnd.y);
+                if (w > 5 && h > 5) {
+                    hasCropSelection = true;
+                    document.getElementById('btn-apply-crop').disabled = false;
+                }
+            }
+            sCtx.beginPath();
+        });
+
+        function getMousePos(e) {
+            const rect = mainCanvas.getBoundingClientRect();
+            const scaleX = mainCanvas.width / rect.width;
+            const scaleY = mainCanvas.height / rect.height;
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        function renderCropPreview() {
+            sCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+            
+            const x = Math.min(cropStart.x, cropEnd.x);
+            const y = Math.min(cropStart.y, cropEnd.y);
+            const w = Math.abs(cropStart.x - cropEnd.x);
+            const h = Math.abs(cropStart.y - cropEnd.y);
+
+            // 繪製半透明背景
+            sCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            sCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+            
+            // 挖空裁切區域
+            sCtx.clearRect(x, y, w, h);
+            
+            // 繪製裁切框邊界
+            sCtx.strokeStyle = 'white';
+            sCtx.lineWidth = 2;
+            sCtx.setLineDash([5, 5]);
+            sCtx.strokeRect(x, y, w, h);
+            sCtx.setLineDash([]);
+        }
+
+        function drawEraser(x, y, isMoving) {
+            sCtx.lineWidth = brushSize;
+            sCtx.lineCap = 'round';
+            sCtx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // Red
+            if (!isMoving) sCtx.beginPath();
+            sCtx.lineTo(x, y);
+            sCtx.stroke();
+            sCtx.beginPath();
+            sCtx.moveTo(x, y);
+        }
+
+        function closeAllPanels(exceptId) {
+            const panels = ['resize-panel', 'crop-panel', 'eraser-panel'];
+            panels.forEach(id => {
+                if (id !== exceptId) document.getElementById(id).style.display = 'none';
+            });
+            document.getElementById('btn-toggle-crop').classList.remove('active');
+            document.getElementById('btn-toggle-eraser').classList.remove('active');
+            toolHint.style.display = 'none';
+        }
+
+        // --- AI API 功能 ---
+        async function applyEraser() {
+            logAI("AI 正在修補中...");
+            const baseImg = mainCanvas.toDataURL('image/png').split(',')[1];
+            const maskImg = maskCanvas.toDataURL('image/png').split(',')[1];
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "移除紅色遮罩標示的物件，並填補背景。" },
+                                { inlineData: { mimeType: "image/png", data: baseImg } },
+                                { inlineData: { mimeType: "image/png", data: maskImg } }
+                            ]
+                        }],
+                        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                    })
+                });
+                const result = await response.json();
+                const imgData = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (imgData) {
+                    loadImage(`data:image/png;base64,${imgData.inlineData.data}`);
+                    logAI("物件移除成功");
+                    toggleEraserMode();
+                }
+            } catch (e) { logAI("修復失敗", true); }
+        }
+
+        async function removeBackground() {
+            logAI("AI 去背中...");
+            const base64Data = mainCanvas.toDataURL('image/png').split(',')[1];
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "去背圖片，回傳透明背景圖片。" },
+                                { inlineData: { mimeType: "image/png", data: base64Data } }
+                            ]
+                        }],
+                        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                    })
+                });
+                const result = await response.json();
+                const imgData = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (imgData) loadImage(`data:image/png;base64,${imgData.inlineData.data}`);
+                logAI("去背完成");
+            } catch (e) { logAI("去背失敗", true); }
+        }
+
+        async function applyAIEdit() {
+            const prompt = document.getElementById('ai-prompt').value;
+            if (!prompt) return logAI("請輸入指令", true);
+            logAI("AI 修改中...");
+            const base64Data = mainCanvas.toDataURL('image/png').split(',')[1];
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: `將圖片根據指令修改：${prompt}` },
+                                { inlineData: { mimeType: "image/png", data: base64Data } }
+                            ]
+                        }],
+                        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                    })
+                });
+                const result = await response.json();
+                const imgData = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (imgData) loadImage(`data:image/png;base64,${imgData.inlineData.data}`);
+                logAI("AI 修改完成");
+            } catch (e) { logAI("處理失敗", true); }
+        }
+
+        // --- 渲染與基礎濾鏡 ---
+        function render() {
+            if (!originalImg) return;
+            mCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            mCtx.drawImage(originalImg, 0, 0);
+
+            const bright = document.getElementById('range-bright').value / 100;
+            if (bright !== 1) {
+                const id = mCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+                for (let i = 0; i < id.data.length; i += 4) {
+                    id.data[i] *= bright; id.data[i+1] *= bright; id.data[i+2] *= bright;
+                }
+                mCtx.putImageData(id, 0, 0);
+            }
+        }
+
+        document.getElementById('range-bright').addEventListener('input', (e) => {
+            document.getElementById('val-bright').innerText = `${e.target.value}%`;
+            render();
+        });
+
+        function resetAll() {
+            if (confirm("確定要重置所有更改嗎？")) {
+                loadImage(originalImg.src, false);
+                document.getElementById('range-bright').value = 100;
+                document.getElementById('val-bright').innerText = "100%";
+                historyStack = [];
+                updateUndo();
+            }
+        }
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = `workshop-${Date.now()}.png`;
+            link.href = mainCanvas.toDataURL();
+            link.click();
+        }
+
+    </script>
+</body>
+</html>
